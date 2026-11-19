@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123b36">
+  <title>CableTrack | Cable Fault Jobs</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="config.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">CT</div>
+      <div><div class="brand-name">CableTrack</div><div class="brand-sub">CABLE FAULT RECORDS</div></div>
+    </div>
+    <div class="top-actions">
+      <span id="connection" class="connection"><i></i> Connecting…</span>
+      <button class="button button-light" id="exportAllBtn">↓ Download Excel</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="welcome">
+      <div>
+        <p class="eyebrow">JOB MANAGEMENT</p>
+        <h1>Cable Fault Jobs</h1>
+        <p class="muted">View, search and update all recorded jobs in one place.</p>
+      </div>
+      <button class="button button-primary button-large" id="addJobBtn">＋ Add New Job</button>
+    </section>
+
+    <section class="stats" aria-label="Job totals">
+      <article class="stat-card"><div class="stat-label">Total Jobs</div><div class="stat-value" id="totalCount">—</div><div class="stat-note">All recorded jobs</div></article>
+      <article class="stat-card stat-done"><div class="stat-label">Finished</div><div class="stat-value" id="finishedCount">—</div><div class="stat-note">Completed jobs</div></article>
+      <article class="stat-card stat-failed"><div class="stat-label">Failed</div><div class="stat-value" id="failedCount">—</div><div class="stat-note">Unsuccessful jobs</div></article>
+      <article class="stat-card stat-pending"><div class="stat-label">Pending</div><div class="stat-value" id="pendingCount">—</div><div class="stat-note">Blank Status cells</div></article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <div><h2>All Jobs</h2><p class="muted small">Select a row to view or edit the full record.</p></div>
+        <div class="panel-actions">
+          <button class="button button-outline" id="exportFilteredBtn">↓ Export filtered</button>
+          <button class="button button-primary" id="addJobBtn2">＋ Add Job</button>
+        </div>
+      </div>
+
+      <div class="filters">
+        <label class="search-wrap"><span class="search-icon">⌕</span><input id="searchInput" type="search" placeholder="Search any column…" autocomplete="off"></label>
+        <select id="statusFilter" aria-label="Filter by Status"><option value="">All Status</option><option value="Finished">Finished</option><option value="Failed">Failed</option><option value="Pending">Pending</option></select>
+        <select id="byWhomFilter" aria-label="Filter by By Whom"><option value="">All By Whom</option></select>
+        <select id="doneFilter" aria-label="Filter by Done"><option value="">All Done</option></select>
+        <input id="fromDate" type="date" aria-label="From date" title="From DATE">
+        <input id="toDate" type="date" aria-label="To date" title="To DATE">
+        <button class="button button-quiet" id="clearFiltersBtn">Clear filters</button>
+      </div>
+
+      <div class="table-meta"><span id="resultCount">Loading jobs…</span><span>Blank Status = Pending</span></div>
+      <div class="table-scroll">
+        <table id="jobsTable">
+          <thead><tr id="tableHead"></tr></thead>
+          <tbody id="jobsBody"><tr><td class="empty-cell">Connecting to the database…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="table-footer"><span id="pageInfo">—</span><div class="pagination"><button class="button button-outline button-small" id="prevPage">← Previous</button><button class="button button-outline button-small" id="nextPage">Next →</button></div></div>
+    </section>
+
+    <section class="setup-card" id="setupCard" hidden>
+      <div class="setup-icon">↥</div>
+      <div class="setup-copy"><h3>Import your original Excel records</h3><p>The database is empty. Import the combined records from Sheet1 and Sheet2 once to get started. Existing exact duplicate rows have been excluded.</p></div>
+      <button class="button button-primary" id="importBtn">Import original records</button>
+    </section>
+    <footer> CableTrack · Your changes are saved online automatically.</footer>
+  </main>
+
+  <div class="modal-backdrop" id="jobModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header"><div><p class="eyebrow">JOB RECORD</p><h2 id="modalTitle">Add New Job</h2></div><button class="icon-button" id="closeModalBtn" aria-label="Close">×</button></div>
+      <form id="jobForm">
+        <div class="form-grid" id="formFields"></div>
+        <div class="modal-footer">
+          <button type="button" class="button button-danger-outline" id="deleteJobBtn" hidden>Delete Job</button>
+          <span class="form-spacer"></span>
+          <button type="button" class="button button-outline" id="cancelBtn">Cancel</button>
+          <button type="submit" class="button button-primary" id="saveBtn">Save Job</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>

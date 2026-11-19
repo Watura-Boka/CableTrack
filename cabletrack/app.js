@@ -32,6 +32,9 @@ function dateForInput(value) {
   const s = String(value).trim();
   let m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
   if (m) return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2})$/);
+  if (m) return `20${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+  if (/^\d{1,2}[\/.-]\d{1,2}[\/.-]/.test(s)) return "";
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
@@ -60,17 +63,27 @@ function fillSelect(id, values, label) {
   el.innerHTML = `<option value="">${label}</option>` + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
   if (values.includes(old)) el.value = old;
 }
+function countUp(id, to) {
+  const el = $(id), from = parseInt(el.textContent) || 0;
+  if (from === to || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = to; return; }
+  const t0 = performance.now(), dur = 700;
+  (function step(t) {
+    const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
 function updateStats() {
-  $("totalCount").textContent = jobs.length;
-  $("finishedCount").textContent = jobs.filter(j => statusOf(j.cells) === "Finished").length;
-  $("failedCount").textContent = jobs.filter(j => statusOf(j.cells) === "Failed").length;
-  $("pendingCount").textContent = jobs.filter(j => statusOf(j.cells) === "Pending").length;
+  countUp("totalCount", jobs.length);
+  countUp("finishedCount", jobs.filter(j => statusOf(j.cells) === "Finished").length);
+  countUp("failedCount", jobs.filter(j => statusOf(j.cells) === "Failed").length);
+  countUp("pendingCount", jobs.filter(j => statusOf(j.cells) === "Pending").length);
 }
 function renderFilters() {
   fillSelect("byWhomFilter", uniqueValues(8), "All By Whom");
   fillSelect("doneFilter", uniqueValues(9), "All Done");
 }
-function applyFilters() {
+function applyFilters(keepPage) {
   const q = $("searchInput").value.trim().toLowerCase();
   const status = $("statusFilter").value, by = $("byWhomFilter").value, done = $("doneFilter").value;
   const from = $("fromDate").value, to = $("toDate").value;
@@ -82,7 +95,9 @@ function applyFilters() {
     const matchesDone = !done || String(c[9] ?? "").trim() === done;
     return matchesText && matchesStatus && matchesBy && matchesDone && dateBetween(c[0], from, to);
   });
-  currentPage = 1; renderTable();
+  const pages = Math.max(1, Math.ceil(filteredJobs.length / PAGE_SIZE));
+  currentPage = keepPage === true ? Math.min(currentPage, pages) : 1;
+  renderTable();
 }
 function renderTable() {
   const start = (currentPage - 1) * PAGE_SIZE;
@@ -91,7 +106,7 @@ function renderTable() {
   if (!pageRows.length) {
     $("jobsBody").innerHTML = `<tr><td colspan="${HEADERS.length+1}" class="empty-cell">No matching jobs found. Try changing your search or filters.</td></tr>`;
   } else {
-    $("jobsBody").innerHTML = pageRows.map(job => {
+    $("jobsBody").innerHTML = pageRows.map((job, n) => {
       const cells = cleanCells(job.cells);
       const values = cells.map((v,i) => {
         if (i === 11) {
@@ -100,7 +115,7 @@ function renderTable() {
         }
         return `<td title="${escapeHtml(v ?? "")}">${escapeHtml(i === 0 || i === 10 ? displayDate(v) : (v ?? ""))}</td>`;
       }).join("");
-      return `<tr data-id="${job.id}" tabindex="0" aria-label="Edit job">${values}<td><span style="color:#176b58;font-weight:800">Edit →</span></td></tr>`;
+      return `<tr data-id="${escapeHtml(job.id)}" style="--i:${n}" tabindex="0" aria-label="Edit job">${values}<td><span class="edit-link">Edit →</span></td></tr>`;
     }).join("");
   }
   $("resultCount").textContent = `Showing ${filteredJobs.length ? start+1 : 0}–${Math.min(start+PAGE_SIZE,filteredJobs.length)} of ${filteredJobs.length} jobs`;
@@ -109,7 +124,7 @@ function renderTable() {
   $("nextPage").disabled = currentPage >= Math.ceil(filteredJobs.length/PAGE_SIZE);
 }
 function renderAll() {
-  updateStats(); renderFilters(); applyFilters();
+  updateStats(); renderFilters(); applyFilters(true);
   $("setupCard").hidden = jobs.length !== 0;
 }
 function formField(index, cells) {
@@ -127,7 +142,7 @@ function formField(index, cells) {
     const type = (index === 0 || index === 10) ? "text" : "text";
     control = `<input id="field-${index}" type="${type}" value="${escapeHtml(index===0||index===10 ? displayDate(val) : val)}" placeholder="${index===0||index===10 ? "DD/MM/YYYY" : ""}">`;
   }
-  return `<div class="field${wide}"><label for="field-${index}">${escapeHtml(header || " ")}</label>${control}</div>`;
+  return `<div class="field${wide}" style="--n:${index}"><label for="field-${index}">${escapeHtml(header || " ")}</label>${control}</div>`;
 }
 function openModal(job=null) {
   editingId = job?.id ?? null;
@@ -199,9 +214,14 @@ async function loadJobs() {
   }
   supabaseClient = window.supabase.createClient(config.SUPABASE_URL,config.SUPABASE_ANON_KEY);
   try {
-    const {data,error}=await supabaseClient.from("jobs").select("*").order("created_at",{ascending:false});
-    if(error) throw error;
-    jobs=(data||[]).map(j=>({...j,cells:cleanCells(j.cells)}));
+    let data=[];
+    for(let from=0;;from+=1000){
+      const r=await supabaseClient.from("jobs").select("*").order("created_at",{ascending:false}).range(from,from+999);
+      if(r.error) throw r.error;
+      data=data.concat(r.data||[]);
+      if((r.data||[]).length<1000) break;
+    }
+    jobs=data.map(j=>({...j,cells:cleanCells(j.cells)}));
     setConnection("online","Connected");
     renderAll();
   } catch(e) {
@@ -217,7 +237,8 @@ async function importStarterData() {
     const check=await supabaseClient.from("jobs").select("id",{count:"exact",head:true});
     if(check.error) throw check.error;
     if(check.count>0) { notify("The database already contains jobs. Import cancelled to avoid duplicates."); await loadJobs(); return; }
-    const response=await fetch("data/initial-data.json");
+    let response=await fetch("data/initial-data.json");
+    if(!response.ok) response=await fetch("initial-data.json");
     if(!response.ok) throw new Error("Could not load initial-data.json");
     const starter=await response.json();
     for(let i=0;i<starter.rows.length;i+=50) {
@@ -238,9 +259,9 @@ function bindEvents() {
   $("jobModal").addEventListener("click",e=>{if(e.target===$("jobModal"))closeModal();});
   $("jobForm").addEventListener("submit",saveJob);
   $("deleteJobBtn").onclick=deleteJob;
-  $("jobsBody").addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(tr){const job=jobs.find(j=>j.id===tr.dataset.id);if(job)openModal(job);}});
-  $("jobsBody").addEventListener("keydown",e=>{if(e.key==="Enter"){const tr=e.target.closest("tr[data-id]");if(tr){const job=jobs.find(j=>j.id===tr.dataset.id);if(job)openModal(job);}}});
-  ["searchInput","statusFilter","byWhomFilter","doneFilter","fromDate","toDate"].forEach(id=>$(id).addEventListener(id==="searchInput"?"input":"change",applyFilters));
+  $("jobsBody").addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(tr){const job=jobs.find(j=>String(j.id)===tr.dataset.id);if(job)openModal(job);}});
+  $("jobsBody").addEventListener("keydown",e=>{if(e.key==="Enter"){const tr=e.target.closest("tr[data-id]");if(tr){const job=jobs.find(j=>String(j.id)===tr.dataset.id);if(job)openModal(job);}}});
+  ["searchInput","statusFilter","byWhomFilter","doneFilter","fromDate","toDate"].forEach(id=>$(id).addEventListener(id==="searchInput"?"input":"change",()=>applyFilters()));
   $("clearFiltersBtn").onclick=()=>{["searchInput","statusFilter","byWhomFilter","doneFilter","fromDate","toDate"].forEach(id=>$(id).value="");applyFilters();};
   $("prevPage").onclick=()=>{if(currentPage>1){currentPage--;renderTable();}};
   $("nextPage").onclick=()=>{if(currentPage<Math.ceil(filteredJobs.length/PAGE_SIZE)){currentPage++;renderTable();}};

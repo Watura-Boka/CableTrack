@@ -111,11 +111,11 @@ function renderTable() {
       const values = cells.map((v,i) => {
         if (i === 11) {
           const s = statusOf(cells), cls = s.toLowerCase();
-          return `<td><span class="status-pill status-${cls}">${s}</span></td>`;
+          return `<td data-i="${i}" data-label="${escapeHtml(HEADERS[i])}"><span class="status-pill status-${cls}">${s}</span></td>`;
         }
-        return `<td title="${escapeHtml(v ?? "")}">${escapeHtml(i === 0 || i === 10 ? displayDate(v) : (v ?? ""))}</td>`;
+        return `<td data-i="${i}" data-label="${escapeHtml(HEADERS[i])}" title="${escapeHtml(v ?? "")}">${escapeHtml(i === 0 || i === 10 ? displayDate(v) : (v ?? ""))}</td>`;
       }).join("");
-      return `<tr data-id="${escapeHtml(job.id)}" style="--i:${n}" tabindex="0" aria-label="Edit job">${values}<td><span class="edit-link">Edit →</span></td></tr>`;
+      return `<tr data-id="${escapeHtml(job.id)}" style="--i:${n}" tabindex="0" aria-label="Edit job">${values}<td data-i="x"><span class="edit-link">Edit →</span></td></tr>`;
     }).join("");
   }
   $("resultCount").textContent = `Showing ${filteredJobs.length ? start+1 : 0}–${Math.min(start+PAGE_SIZE,filteredJobs.length)} of ${filteredJobs.length} jobs`;
@@ -268,6 +268,7 @@ function bindEvents() {
   $("exportAllBtn").onclick=()=>exportExcel(jobs,"CableTrack_All_Jobs.xlsx");
   $("exportFilteredBtn").onclick=()=>exportExcel(filteredJobs,"CableTrack_Filtered_Jobs.xlsx");
   $("importBtn").onclick=importStarterData;
+  $("filterToggle").onclick=()=>{const f=$("filtersBox"),o=f.classList.toggle("open");$("filterToggle").setAttribute("aria-expanded",o);};
   document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("jobModal").hidden)closeModal();});
 }
 bindEvents();
